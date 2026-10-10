@@ -1,0 +1,162 @@
+/* ─── CLOCKIT — Global Styles ─────────────────────────────────────────────── */
+
+@import "tailwindcss";
+
+/* ── Reset & box model ──────────────────────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+/* ── Root sizing ────────────────────────────────────────────────────────────── */
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: black;
+}
+
+/* ── Cursor — keep default so desktop users retain pointer feedback ──────────── */
+body {
+  cursor: default;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.clockit-chip-row {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  overflow-x: auto;
+  padding: 2px 0 6px;
+  scrollbar-width: none;
+}
+
+.clockit-chip-row::-webkit-scrollbar {
+  display: none;
+}
+
+.clockit-chip,
+.clockit-icon-btn {
+  min-height: 44px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: transparent;
+  color: rgba(255, 255, 255, 0.78);
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.clockit-chip {
+  flex: 0 0 auto;
+  padding: 0 14px;
+}
+
+.clockit-chip-slim {
+  min-height: 28px;
+  padding: 0 10px;
+  font-size: 10px;
+}
+
+.clockit-text-btn {
+  height: 32px;
+  min-width: 32px;
+  padding: 0 8px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.82);
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.clockit-text-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.clockit-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  width: min(92vw, 420px);
+  max-height: 46vh;
+  overflow: auto;
+  padding: 8px;
+  margin: 0;
+  background: rgba(5, 5, 5, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  backdrop-filter: blur(16px);
+}
+
+.clockit-filter-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.72);
+  cursor: pointer;
+  text-align: left;
+  font-family: ui-monospace, monospace;
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.clockit-filter-tile canvas {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 8px;
+  background: #111;
+}
+
+.clockit-filter-tile span {
+  padding: 0 2px 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.clockit-filter-tile.is-active {
+  border-color: #fff;
+  color: #fff;
+}
+
+.clockit-chip[aria-pressed="true"] {
+  background: #fff;
+  color: #050505;
+  border-color: #fff;
+}
+
+.clockit-icon-btn {
+  width: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.clockit-icon-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
