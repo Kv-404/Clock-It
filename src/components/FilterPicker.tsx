@@ -23,6 +23,15 @@ const PREVIEW: Record<number, string> = {
   30: 'grayscale(1) contrast(1.55) brightness(0.88)',
   31: 'hue-rotate(320deg) saturate(1.9) contrast(1.2)',
   32: 'sepia(0.35) saturate(1.25) brightness(1.08)',
+  29: 'hue-rotate(170deg) saturate(1.6) contrast(1.3) brightness(1.1)',
+  33: 'saturate(1.8) hue-rotate(300deg) contrast(1.1)',
+  34: 'sepia(1) hue-rotate(180deg) saturate(2) contrast(1.2)',
+  35: 'sepia(0.8) saturate(1.4) contrast(1.15) brightness(1.05)',
+  36: 'invert(1) sepia(0.4) hue-rotate(180deg) saturate(2)',
+  37: 'saturate(0.6) brightness(1.15) contrast(0.9)',
+  38: 'contrast(2) saturate(2)',
+  39: 'sepia(0.45) saturate(1.5) hue-rotate(330deg) brightness(1.05)',
+  40: 'grayscale(1) contrast(1.7) brightness(1.05)',
 };
 
 function paintPreview(canvas: HTMLCanvasElement, video: HTMLVideoElement, effectId: number) {

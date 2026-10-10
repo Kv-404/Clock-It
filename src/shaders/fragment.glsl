@@ -606,10 +606,67 @@ void main() {
   }
 
   // ── Effect 32 — Light Leak ────────────────────────────────────────────────────
-  else {
+  else if (uEffect < 32.5) {
     float leak = smoothstep(0.15, 1.0, uv.x) * (0.38 + 0.12 * sin(uTime));
     vec3 warmed = base.rgb + vec3(1.0, 0.42, 0.12) * leak;
     gl_FragColor = vec4(warmed, 1.0);
+  }
+
+  // ── Effect 33 — Candy ─────────────────────────────────────────────────────────
+  else if (uEffect < 33.5) {
+    vec3 candy = mix(base.rgb, vec3(1.0, 0.32, 0.68), 0.38);
+    candy.b = mix(candy.b, 1.0, 0.28);
+    gl_FragColor = vec4(candy * vec3(1.12, 0.94, 1.08), 1.0);
+  }
+
+  // ── Effect 34 — Blueprint ─────────────────────────────────────────────────────
+  else if (uEffect < 34.5) {
+    float lines = step(0.93, fract(uv.x * 36.0)) + step(0.93, fract(uv.y * 36.0 * aspect));
+    float bpLum = getLuma(base.rgb);
+    vec3 blue = mix(vec3(0.04, 0.16, 0.42), vec3(0.62, 0.9, 1.0), bpLum);
+    blue = mix(blue, vec3(0.82, 0.96, 1.0), clamp(lines, 0.0, 1.0) * 0.4);
+    gl_FragColor = vec4(blue, 1.0);
+  }
+
+  // ── Effect 35 — Gold ──────────────────────────────────────────────────────────
+  else if (uEffect < 35.5) {
+    float goldLum = smoothstep(0.08, 0.9, getLuma(base.rgb));
+    vec3 gold = mix(vec3(0.22, 0.12, 0.02), vec3(1.0, 0.84, 0.38), goldLum);
+    gl_FragColor = vec4(gold, 1.0);
+  }
+
+  // ── Effect 36 — X-Ray ─────────────────────────────────────────────────────────
+  else if (uEffect < 36.5) {
+    float xray = 1.0 - getLuma(base.rgb);
+    gl_FragColor = vec4(vec3(0.05, 0.12, 0.22) + vec3(0.2, 0.65, 1.0) * xray, 1.0);
+  }
+
+  // ── Effect 37 — Pastel ────────────────────────────────────────────────────────
+  else if (uEffect < 37.5) {
+    vec3 pastel = mix(vec3(0.96, 0.86, 0.9), base.rgb, 0.52);
+    gl_FragColor = vec4(pastel, 1.0);
+  }
+
+  // ── Effect 38 — Pop Art ───────────────────────────────────────────────────────
+  else if (uEffect < 38.5) {
+    float popLum = getLuma(base.rgb);
+    vec3 pop = popLum > 0.66 ? vec3(1.0, 0.88, 0.08) : popLum > 0.33 ? vec3(1.0, 0.12, 0.32) : vec3(0.05, 0.12, 0.82);
+    gl_FragColor = vec4(pop, 1.0);
+  }
+
+  // ── Effect 39 — Sunset ────────────────────────────────────────────────────────
+  else if (uEffect < 39.5) {
+    vec3 sun = base.rgb * vec3(1.28, 0.72, 0.5);
+    sun += vec3(0.32, 0.04, 0.12) * uv.y;
+    gl_FragColor = vec4(sun, 1.0);
+  }
+
+  // ── Effect 40 — Chrome ────────────────────────────────────────────────────────
+  else {
+    float chromeLum = smoothstep(0.12, 0.92, getLuma(base.rgb));
+    vec3 chrome = mix(vec3(0.12), vec3(0.94), chromeLum);
+    chrome += vec3(0.04, 0.07, 0.1) * sin(uv.y * 28.0 + uTime);
+    gl_FragColor = vec4(chrome, 1.0);
   }
 
   // ── STEP 7 — Apply Global Color Space Mode ────────────────────────────────────

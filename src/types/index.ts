@@ -61,9 +61,18 @@ export const EFFECTS = [
   { id: 26, name: 'Prism Split' },
   { id: 27, name: 'Soft Bloom' },
   { id: 28, name: 'Poster Pop' },
+  { id: 29, name: 'Hologram' },
   { id: 30, name: 'Noir Grain' },
   { id: 31, name: 'Infrared' },
   { id: 32, name: 'Light Leak' },
+  { id: 33, name: 'Candy' },
+  { id: 34, name: 'Blueprint' },
+  { id: 35, name: 'Gold' },
+  { id: 36, name: 'X-Ray' },
+  { id: 37, name: 'Pastel' },
+  { id: 38, name: 'Pop Art' },
+  { id: 39, name: 'Sunset' },
+  { id: 40, name: 'Chrome' },
 ] as const;
 
 export type EffectName = typeof EFFECTS[number]['name'];
