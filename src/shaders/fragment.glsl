@@ -5,6 +5,7 @@ uniform float     uTime;
 uniform vec4      uBox;        // xMin, yMin, xMax, yMax  (normalised 0-1)
 uniform float     uEffect;     // 0.0 – 6.0
 uniform vec2      uResolution;
+uniform vec2      uSourceSize;  // camera frame size in pixels
 uniform float     uColorMode;  // 0.0 = normal, 1.0 = b&w, 2.0 = warm, 3.0 = cool
 uniform float     uBackgroundMode; // 0.0 = normal (color), 1.0 = mono (grayscale)
 uniform float     uBorderEnabled;  // 0.0 = disabled, 1.0 = enabled
@@ -104,7 +105,8 @@ void main() {
   vec2 uv = vec2(1.0 - vUv.x, vUv.y);
 
   // ── STEP 2 — Pre-sample ALL textures (ZERO texture2D calls after this block) ─
-  vec2 texel = 1.0 / uResolution;
+  // One camera pixel. Keeps edge detection on the source, not the window size.
+  vec2 texel = 1.0 / max(uSourceSize, vec2(1.0));
 
   // Base sample
   vec4 base = texture2D(uTexture, uv);

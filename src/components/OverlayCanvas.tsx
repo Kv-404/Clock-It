@@ -1,5 +1,6 @@
 import { useRef, useEffect, useCallback } from 'react';
 import type { HandData, LandmarkPoint } from '../types';
+import { coverScale, viewPixelRatio } from '../lib/display';
 
 // ─── Hand landmark connection pairs (MediaPipe standard topology) ──────────────
 const HAND_CONNECTIONS: [number, number][] = [
@@ -37,8 +38,12 @@ function toScreen(
   lm: LandmarkPoint,
   w: number,
   h: number,
+  coverX: number,
+  coverY: number,
 ): { x: number; y: number } {
-  return { x: (1 - lm.x) * w, y: lm.y * h };
+  const x = (((1 - lm.x) - 0.5) * coverX + 0.5) * w;
+  const y = ((lm.y - 0.5) * coverY + 0.5) * h;
+  return { x, y };
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -48,7 +53,7 @@ interface OverlayCanvasProps {
   videoRef: React.MutableRefObject<HTMLVideoElement | null>;
 }
 
-export default function OverlayCanvas({ handsRef }: OverlayCanvasProps) {
+export default function OverlayCanvas({ handsRef, videoRef }: OverlayCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef    = useRef<number>(0);
   const drawRef    = useRef<() => void>(() => {});
@@ -62,21 +67,24 @@ export default function OverlayCanvas({ handsRef }: OverlayCanvasProps) {
 
     const w     = canvas.width;
     const h     = canvas.height;
+    const dpr   = w / Math.max(1, window.innerWidth);
 
     ctx.clearRect(0, 0, w, h);
 
     const hands = handsRef.current;
+    const video = videoRef.current;
+    const cover = coverScale(window.innerWidth, window.innerHeight, video?.videoWidth ?? 0, video?.videoHeight ?? 0);
 
     // ── A. Skeleton lines ──────────────────────────────────────────────────
     ctx.save();
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
-    ctx.lineWidth   = 1.0;
+    ctx.lineWidth   = dpr;
     ctx.lineCap     = 'round';
 
     for (const hand of hands) {
       for (const [a, b] of HAND_CONNECTIONS) {
-        const pa = toScreen(hand.landmarks[a], w, h);
-        const pb = toScreen(hand.landmarks[b], w, h);
+        const pa = toScreen(hand.landmarks[a], w, h, cover.x, cover.y);
+        const pb = toScreen(hand.landmarks[b], w, h, cover.x, cover.y);
         ctx.beginPath();
         ctx.moveTo(pa.x, pa.y);
         ctx.lineTo(pb.x, pb.y);
@@ -90,19 +98,19 @@ export default function OverlayCanvas({ handsRef }: OverlayCanvasProps) {
       const colorBasis = HAND_COLORS[hi % 2];
 
       for (let i = 0; i < hands[hi].landmarks.length; i++) {
-        const { x, y } = toScreen(hands[hi].landmarks[i], w, h);
+        const { x, y } = toScreen(hands[hi].landmarks[i], w, h, cover.x, cover.y);
         
-        let r = 2.5; 
+        let r = 2.5 * dpr;
         let opacity = 0.35;
 
         // Wrist
         if (i === 0) {
-          r = 4;
+          r = 4 * dpr;
           opacity = 0.6;
         } 
         // Fingertips
         else if ((FINGERTIP_INDICES as ReadonlyArray<number>).includes(i)) {
-          r = 5;
+          r = 5 * dpr;
           opacity = 0.75;
         }
 
@@ -121,8 +129,8 @@ export default function OverlayCanvas({ handsRef }: OverlayCanvasProps) {
 
       for (let i = 0; i < FINGERTIP_INDICES.length; i++) {
         const tipIdx = FINGERTIP_INDICES[i];
-        const p0     = toScreen(hands[0].landmarks[tipIdx], w, h);
-        const p1     = toScreen(hands[1].landmarks[tipIdx], w, h);
+        const p0     = toScreen(hands[0].landmarks[tipIdx], w, h, cover.x, cover.y);
+        const p1     = toScreen(hands[1].landmarks[tipIdx], w, h, cover.x, cover.y);
 
         const dx   = p1.x - p0.x;
         const dy   = p1.y - p0.y;
@@ -131,7 +139,7 @@ export default function OverlayCanvas({ handsRef }: OverlayCanvasProps) {
         if (dist > maxDist) continue;
 
         const connectOpacity = (1 - dist / maxDist) * 0.4;
-        const connectWidth   = (1 - dist / maxDist) * 1.2 + 0.3;
+        const connectWidth   = ((1 - dist / maxDist) * 1.2 + 0.3) * dpr;
 
         // ── C. Subtle inter-hand constellation line ──────────────────────────
         ctx.save();
@@ -147,7 +155,7 @@ export default function OverlayCanvas({ handsRef }: OverlayCanvasProps) {
         // ── D. Midpoint pulse orb ──────────────────────────────────────────
         const midX        = (p0.x + p1.x) / 2;
         const midY        = (p0.y + p1.y) / 2;
-        const pulseRadius = 1.8 + Math.sin(now * 0.004 + i * 1.2) * 0.8;
+        const pulseRadius = (1.8 + Math.sin(now * 0.004 + i * 1.2) * 0.8) * dpr;
 
         ctx.beginPath();
         ctx.arc(midX, midY, pulseRadius, 0, Math.PI * 2);
@@ -157,7 +165,7 @@ export default function OverlayCanvas({ handsRef }: OverlayCanvasProps) {
     }
 
     rafRef.current = requestAnimationFrame(drawRef.current);
-  }, [handsRef]);
+  }, [handsRef, videoRef]);
 
   useEffect(() => {
     drawRef.current = draw;
@@ -170,8 +178,9 @@ export default function OverlayCanvas({ handsRef }: OverlayCanvasProps) {
     if (!canvas) return;
 
     const resize = () => {
-      canvas.width  = window.innerWidth;
-      canvas.height = window.innerHeight;
+      const dpr = viewPixelRatio();
+      canvas.width  = Math.round(window.innerWidth * dpr);
+      canvas.height = Math.round(window.innerHeight * dpr);
     };
 
     window.addEventListener('resize', resize);

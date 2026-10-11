@@ -8,6 +8,19 @@ import { effectName, stepEffect } from './types';
 import type { BoxCoords, HandData } from './types';
 import DeveloperLink from './components/DeveloperLink';
 import { go, requireSignIn, takeNextAction } from './lib/nav';
+
+function sharpContext(canvas: HTMLCanvasElement): CanvasRenderingContext2D | null {
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  return ctx;
+}
+
+/** Bits per second from the pixels actually being recorded. Stays high, capped so a clip stays uploadable. */
+function videoBitrate(width: number, height: number, fps: number): number {
+  return Math.min(40_000_000, Math.max(12_000_000, Math.round(width * height * fps * 0.15)));
+}
 import { 
   uploadCapture,
   fetchCaptures,
@@ -281,7 +294,7 @@ export default function App() {
       recCanvas.height = webglCanvas.height;
       recordCanvasRef.current = recCanvas;
 
-      const ctx = recCanvas.getContext('2d');
+      const ctx = sharpContext(recCanvas);
       if (!ctx) return;
 
       isRecordingRef.current = true;
@@ -303,8 +316,14 @@ export default function App() {
       if (overlayCanvas) ctx.drawImage(overlayCanvas, 0, 0, recCanvas.width, recCanvas.height);
       compositeIntervalRef.current = requestAnimationFrame(drawComposite);
 
-      // Get video stream
-      const canvasStream = (recCanvas as HTMLCanvasElement & { captureStream(fps: number): MediaStream }).captureStream(30);
+      const cameraTrack = videoRef.current?.srcObject instanceof MediaStream
+        ? videoRef.current.srcObject.getVideoTracks()[0]
+        : undefined;
+      const cameraFps = cameraTrack?.getSettings().frameRate ?? 30;
+      const recordFps = Math.min(60, Math.max(24, Math.round(cameraFps) || 30));
+
+      // Sample the composite at the camera's own frame rate.
+      const canvasStream = recCanvas.captureStream(recordFps);
 
       // Get audio stream if mic enabled
       let audioStream: MediaStream | null = null;
@@ -326,6 +345,7 @@ export default function App() {
 
       // Check supported recording formats (prioritizing MP4 for native compatibility)
       const mimeTypes = [
+        'video/mp4;codecs=avc1.640028,mp4a.40.2',
         'video/mp4;codecs=h264,aac',
         'video/mp4',
         'video/webm;codecs=vp9,opus',
@@ -340,9 +360,13 @@ export default function App() {
         }
       }
 
-      const recorder = selectedType 
-        ? new MediaRecorder(combinedStream, { mimeType: selectedType, videoBitsPerSecond: 8000000 }) 
-        : new MediaRecorder(combinedStream, { videoBitsPerSecond: 8000000 });
+      const videoBitsPerSecond = videoBitrate(recCanvas.width, recCanvas.height, recordFps);
+      const recorderOptions: MediaRecorderOptions = {
+        videoBitsPerSecond,
+        audioBitsPerSecond: 192000,
+      };
+      if (selectedType) recorderOptions.mimeType = selectedType;
+      const recorder = new MediaRecorder(combinedStream, recorderOptions);
 
       recorder.ondataavailable = (event) => {
         if (event.data && event.data.size > 0) {
@@ -385,7 +409,8 @@ export default function App() {
       };
 
       mediaRecorderRef.current = recorder;
-      recorder.start(1000); // collect chunk data every 1s
+      // One continuous file. A 1s timeslice splits the encode and softens the picture.
+      recorder.start();
 
       timerIntervalRef.current = window.setInterval(() => {
         setRecordingSeconds(prev => prev + 1);
@@ -469,7 +494,7 @@ export default function App() {
       photoCanvas.width = webglCanvas.width;
       photoCanvas.height = webglCanvas.height;
 
-      const ctx = photoCanvas.getContext('2d');
+      const ctx = sharpContext(photoCanvas);
       if (!ctx) return;
 
       // Draw WebGL and overlay canvases scaled

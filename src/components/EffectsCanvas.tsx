@@ -5,6 +5,7 @@ import vertexShader   from '../shaders/vertex.glsl?raw';
 import fragmentShader from '../shaders/fragment.glsl?raw';
 import { effectName } from '../types';
 import type { BoxCoords } from '../types';
+import { coverScale, viewPixelRatio } from '../lib/display';
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
@@ -33,6 +34,7 @@ function ShaderPlane({ videoRef, boxRef, effectIndex, colorMode, backgroundMode,
   
   // Create texture imperatively, update every frame
   const textureRef = useRef<THREE.VideoTexture | null>(null);
+  const bufferSize = useRef(new THREE.Vector2());
 
   useFrame(({ gl }) => {
     const video = videoRef.current;
@@ -42,8 +44,11 @@ function ShaderPlane({ videoRef, boxRef, effectIndex, colorMode, backgroundMode,
     // Create texture on first frame that has data
     if (!textureRef.current && video.readyState >= 2 && video.videoWidth > 0) {
       const tex = new THREE.VideoTexture(video);
+      // No mipmaps: a live camera frame should sample the source pixels, not a blurred pyramid.
+      tex.generateMipmaps = false;
       tex.minFilter = THREE.LinearFilter;
       tex.magFilter = THREE.LinearFilter;
+      tex.anisotropy = gl.capabilities.getMaxAnisotropy();
       tex.format = THREE.RGBAFormat;
       tex.colorSpace = THREE.SRGBColorSpace;
       textureRef.current = tex;
@@ -62,13 +67,22 @@ function ShaderPlane({ videoRef, boxRef, effectIndex, colorMode, backgroundMode,
     // Update other uniforms
     const mat = mesh.material as THREE.ShaderMaterial;
     if (mat.uniforms) {
-      mat.uniforms.uTime.value += gl.info.render.frame ? 0.016 : 0.016;
+      mat.uniforms.uTime.value += 0.016;
       mat.uniforms.uBox.value.set(...boxRef.current);
       mat.uniforms.uEffect.value = effectIndex;
       mat.uniforms.uColorMode.value = colorMode;
       mat.uniforms.uBackgroundMode.value = backgroundMode;
       mat.uniforms.uBorderEnabled.value = borderEnabled;
-      mat.uniforms.uResolution.value.set(window.innerWidth, window.innerHeight);
+      gl.getDrawingBufferSize(bufferSize.current);
+      mat.uniforms.uResolution.value.copy(bufferSize.current);
+      mat.uniforms.uSourceSize.value.set(video.videoWidth, video.videoHeight);
+      const cover = coverScale(
+        bufferSize.current.x,
+        bufferSize.current.y,
+        video.videoWidth,
+        video.videoHeight,
+      );
+      mat.uniforms.uCover.value.set(cover.x, cover.y);
     }
   });
 
@@ -80,7 +94,9 @@ function ShaderPlane({ videoRef, boxRef, effectIndex, colorMode, backgroundMode,
     uColorMode: { value: 0.0 },
     uBackgroundMode: { value: 0.0 },
     uBorderEnabled: { value: 1.0 },
-    uResolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) }
+    uResolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
+    uSourceSize: { value: new THREE.Vector2(1, 1) },
+    uCover: { value: new THREE.Vector2(1, 1) },
   }), []);
 
   return (
@@ -154,7 +170,7 @@ export default function EffectsCanvas({ videoRef, boxRef, effectIndex, colorMode
           alpha: false,
           preserveDrawingBuffer: true,
         }}
-        dpr={Math.min(Math.max(window.devicePixelRatio, 2), 3)}
+        dpr={viewPixelRatio()}
       >
         <ShaderPlane videoRef={videoRef} boxRef={boxRef} effectIndex={effectIndex} colorMode={colorMode} backgroundMode={backgroundMode} borderEnabled={borderEnabled} />
       </Canvas>

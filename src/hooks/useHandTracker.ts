@@ -50,6 +50,85 @@ function dist2D(
   return Math.sqrt(dx * dx + dy * dy);
 }
 
+type CameraCaps = MediaTrackCapabilities & {
+  focusMode?: string[];
+  exposureMode?: string[];
+  whiteBalanceMode?: string[];
+};
+
+/** Open the user camera at a sharp size that keeps the sensor's own aspect ratio. */
+async function openCamera(): Promise<MediaStream> {
+  const profiles: MediaTrackConstraints[] = [
+    { facingMode: 'user', width: { ideal: 1920 }, height: { ideal: 1080 }, aspectRatio: { ideal: 16 / 9 }, frameRate: { ideal: 30, max: 60 } },
+    { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 }, aspectRatio: { ideal: 16 / 9 }, frameRate: { ideal: 30 } },
+    { facingMode: 'user', width: { ideal: 3840 }, height: { ideal: 2160 }, aspectRatio: { ideal: 16 / 9 }, frameRate: { ideal: 30, max: 30 } },
+    { facingMode: 'user' },
+  ];
+
+  let opened: MediaStream | null = null;
+  let cameraError: unknown = null;
+  for (const video of profiles) {
+    try {
+      opened = await navigator.mediaDevices.getUserMedia({ video });
+      break;
+    } catch (err) {
+      cameraError = err;
+      if (err instanceof DOMException && err.name === 'NotAllowedError') break;
+    }
+  }
+  if (!opened) throw cameraError ?? new Error('Camera unavailable');
+
+  const track = opened.getVideoTracks()[0];
+  if (track) {
+    track.contentHint = 'detail';
+    const caps = track.getCapabilities?.() as CameraCaps | undefined;
+    const current = track.getSettings();
+    const w = current.width ?? 0;
+    const h = current.height ?? 0;
+    if (w > 0 && h > 0) {
+      const aspect = w / h;
+      const maxW = Math.min(caps?.width?.max ?? w, 3840);
+      const maxH = Math.min(caps?.height?.max ?? h, 2160);
+      let targetW = Math.min(maxW, maxH * aspect);
+      let targetH = targetW / aspect;
+      if (targetH > maxH) {
+        targetH = maxH;
+        targetW = targetH * aspect;
+      }
+      // Same shape as the frame we already have, only larger.
+      if (targetW > w * 1.2) {
+        try {
+          await track.applyConstraints({
+            width: { ideal: Math.round(targetW) },
+            height: { ideal: Math.round(targetH) },
+            aspectRatio: { ideal: aspect },
+            frameRate: { ideal: 30, max: 60 },
+          });
+        } catch (err) {
+          console.warn('[CLOCKIT] Keeping the camera size already granted:', err);
+        }
+      }
+    }
+
+    const advanced: MediaTrackConstraintSet[] = [];
+    if (caps?.focusMode?.includes('continuous')) advanced.push({ focusMode: 'continuous' } as MediaTrackConstraintSet);
+    if (caps?.exposureMode?.includes('continuous')) advanced.push({ exposureMode: 'continuous' } as MediaTrackConstraintSet);
+    if (caps?.whiteBalanceMode?.includes('continuous')) advanced.push({ whiteBalanceMode: 'continuous' } as MediaTrackConstraintSet);
+    if (advanced.length > 0) {
+      try {
+        await track.applyConstraints({ advanced });
+      } catch (err) {
+        console.warn('[CLOCKIT] Camera focus/exposure left on device defaults:', err);
+      }
+    }
+
+    const settings = track.getSettings();
+    console.log('[CLOCKIT] Camera source:', settings.width, 'x', settings.height, '@', settings.frameRate);
+  }
+
+  return opened;
+}
+
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
 export function useHandTracker({
@@ -152,24 +231,7 @@ export function useHandTracker({
       // ── 2. Open webcam stream ────────────────────────────────────────────
       let stream: MediaStream;
       try {
-        const videoProfiles: MediaTrackConstraints[] = [
-          { facingMode: 'user', width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } },
-          { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
-          { facingMode: 'user' },
-        ];
-        let opened: MediaStream | null = null;
-        let cameraError: unknown = null;
-        for (const video of videoProfiles) {
-          try {
-            opened = await navigator.mediaDevices.getUserMedia({ video });
-            break;
-          } catch (err) {
-            cameraError = err;
-            if (err instanceof DOMException && err.name === 'NotAllowedError') break;
-          }
-        }
-        if (!opened) throw cameraError ?? new Error('Camera unavailable');
-        stream = opened;
+        stream = await openCamera();
       } catch (camErr) {
         const isPermissionDenied =
           camErr instanceof DOMException && camErr.name === 'NotAllowedError';
@@ -205,6 +267,24 @@ export function useHandTracker({
 
       setVideoReady(true);
 
+      // Tracking runs on a small copy so a 4K camera does not feed MediaPipe full frames.
+      const detectCanvas = document.createElement('canvas');
+      const detectCtx = detectCanvas.getContext('2d', { alpha: false, willReadFrequently: true });
+
+      const frameForDetect = (): HTMLVideoElement | HTMLCanvasElement => {
+        const longest = Math.max(video.videoWidth, video.videoHeight);
+        if (!detectCtx || longest === 0 || longest <= 640) return video;
+        const scale = 640 / longest;
+        const w = Math.max(1, Math.round(video.videoWidth * scale));
+        const h = Math.max(1, Math.round(video.videoHeight * scale));
+        if (detectCanvas.width !== w || detectCanvas.height !== h) {
+          detectCanvas.width = w;
+          detectCanvas.height = h;
+        }
+        detectCtx.drawImage(video, 0, 0, w, h);
+        return detectCanvas;
+      };
+
       // ── 3. Animation loop ────────────────────────────────────────────────
       const detect = (): void => {
         frameCountRef.current++;
@@ -225,7 +305,7 @@ export function useHandTracker({
         else if (mode === 'hand') {
           // Hand Tracking: runs MediaPipe HandLandmarker every other frame
           if (frameCountRef.current % 2 === 0) {
-            const result = landmarker.detectForVideo(video, performance.now());
+            const result = landmarker.detectForVideo(frameForDetect(), performance.now());
             const hands: HandData[] = result.landmarks.map((lmGroup, i) => ({
               landmarks:  lmGroup.map(({ x, y, z }) => ({ x, y, z })),
               handedness: (result.handedness[i]?.[0]?.categoryName ?? 'Left') as 'Left' | 'Right',
@@ -293,7 +373,7 @@ export function useHandTracker({
           // Face Tracking: runs MediaPipe FaceLandmarker every other frame
           lastResultsRef.current = [];
           if (frameCountRef.current % 2 === 0) {
-            const faceResult = faceLandmarker.detectForVideo(video, performance.now());
+            const faceResult = faceLandmarker.detectForVideo(frameForDetect(), performance.now());
             if (faceResult.faceLandmarks && faceResult.faceLandmarks.length > 0) {
               let xMin = 1.0, yMin = 1.0, xMax = 0.0, yMax = 0.0;
               for (const face of faceResult.faceLandmarks) {
