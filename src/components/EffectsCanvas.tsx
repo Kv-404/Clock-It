@@ -27,6 +27,15 @@ interface ShaderPlaneProps {
   borderEnabled:  number;
 }
 
+function blankFreezeTexture() {
+  const tex = new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1);
+  tex.needsUpdate = true;
+  tex.magFilter = THREE.LinearFilter;
+  tex.minFilter = THREE.LinearFilter;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
 // ─── ShaderPlane — lives inside <Canvas> ─────────────────────────────────────
 
 function ShaderPlane({ videoRef, boxRef, effectIndex, colorMode, backgroundMode, borderEnabled }: ShaderPlaneProps) {
@@ -35,6 +44,10 @@ function ShaderPlane({ videoRef, boxRef, effectIndex, colorMode, backgroundMode,
   // Create texture imperatively, update every frame
   const textureRef = useRef<THREE.VideoTexture | null>(null);
   const bufferSize = useRef(new THREE.Vector2());
+  const freezeCanvas = useRef<HTMLCanvasElement | null>(null);
+  const freezeTexture = useRef<THREE.CanvasTexture | null>(null);
+  const freezeHold = useRef(0);
+  const freezeEffect = useRef(-1);
 
   useFrame(({ gl }) => {
     const video = videoRef.current;
@@ -67,6 +80,42 @@ function ShaderPlane({ videoRef, boxRef, effectIndex, colorMode, backgroundMode,
     // Update other uniforms
     const mat = mesh.material as THREE.ShaderMaterial;
     if (mat.uniforms) {
+      // Datamosh, slit scan, echo, and data bend all sample a held frame.
+      const holdsFrame = effectIndex === 3 || effectIndex === 5 || effectIndex === 6 || effectIndex === 7;
+      if (holdsFrame && video.readyState >= 2 && video.videoWidth > 0) {
+        if (!freezeCanvas.current) {
+          const canvas = document.createElement('canvas');
+          canvas.width = 640;
+          canvas.height = 360;
+          freezeCanvas.current = canvas;
+          const tex = new THREE.CanvasTexture(canvas);
+          tex.generateMipmaps = false;
+          tex.minFilter = THREE.LinearFilter;
+          tex.magFilter = THREE.LinearFilter;
+          tex.colorSpace = THREE.SRGBColorSpace;
+          freezeTexture.current = tex;
+          mat.uniforms.uFreeze.value = tex;
+        }
+        const entered = freezeEffect.current !== effectIndex;
+        if (entered || freezeHold.current % 16 === 0) {
+          const canvas = freezeCanvas.current;
+          const tex = freezeTexture.current;
+          if (canvas && tex) {
+            const width = 640;
+            const height = Math.max(1, Math.round(width * video.videoHeight / video.videoWidth));
+            if (canvas.width !== width || canvas.height !== height) {
+              canvas.width = width;
+              canvas.height = height;
+            }
+            const ctx = canvas.getContext('2d');
+            ctx?.drawImage(video, 0, 0, canvas.width, canvas.height);
+            tex.needsUpdate = true;
+          }
+        }
+        freezeHold.current += 1;
+      }
+      freezeEffect.current = effectIndex;
+
       mat.uniforms.uTime.value += 0.016;
       mat.uniforms.uBox.value.set(...boxRef.current);
       mat.uniforms.uEffect.value = effectIndex;
@@ -88,6 +137,7 @@ function ShaderPlane({ videoRef, boxRef, effectIndex, colorMode, backgroundMode,
 
   const uniforms = useMemo(() => ({
     uTexture: { value: null },
+    uFreeze: { value: blankFreezeTexture() },
     uTime: { value: 0 },
     uBox: { value: new THREE.Vector4(0, 0, 0, 0) },
     uEffect: { value: 0.0 },
