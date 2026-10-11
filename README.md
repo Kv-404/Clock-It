@@ -2,7 +2,7 @@
 
 Clock It is a browser camera studio. You can try filters without an account. Sign in only when you save a photo, record a video, or open your gallery.
 
-The live site is [https://clockit.kv404.dev](https://clockit.kv404.dev).
+The live site is [https://clockit.kv404.dev](https://clockit.kv404.dev). The current release is **1.0.0**. See [CHANGELOG.md](CHANGELOG.md) for what each version includes, and [SECURITY.md](SECURITY.md) for supported versions and how to report a vulnerability.
 
 ## Run it locally
 
