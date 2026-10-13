@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { Analytics } from '@vercel/analytics/react';
 import IntroScreen    from './components/IntroScreen';
 import EffectsCanvas  from './components/EffectsCanvas';
 import OverlayCanvas  from './components/OverlayCanvas';
@@ -551,7 +552,7 @@ export default function App() {
     if (action === 'video') void startRecordingRef.current();
   }, [user]);
 
-  // ── Hand tracker ───────────────────────────────────────────────────────────
+  // ─�� Hand tracker ──────────���────────────────────────────────────────────────
   const { initTracker } = useHandTracker({
     videoRef,
     boxRef,
@@ -603,7 +604,7 @@ export default function App() {
   const isLoading = introComplete && (!videoReady || !modelsReady) && !errorMsg;
   const isActive  = introComplete &&  videoReady  &&  modelsReady  && !errorMsg;
 
-  // ── Render ─────────────────────────────────────────────────────────────────
+  // ── Render ──────────────��──────────────────────────────────────────────────
   return (
     <div className="bg-black overflow-hidden w-screen h-screen relative">
       <DeveloperLink />
@@ -1465,6 +1466,7 @@ export default function App() {
           )}
         </>
       )}
+      <Analytics />
     </div>
   );
 }
