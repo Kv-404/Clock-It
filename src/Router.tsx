@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { SpeedInsights } from '@vercel/speed-insights/react';
 import App from './App';
 import AuthPage from './pages/AuthPage';
 import NotFound from './pages/NotFound';
@@ -17,8 +18,16 @@ export default function Router() {
     return () => window.removeEventListener('popstate', onChange);
   }, []);
 
-  if (path === '/') return <App />;
-  if (path === '/login') return <AuthPage mode="login" />;
-  if (path === '/signup') return <AuthPage mode="signup" />;
-  return <NotFound />;
+  let content;
+  if (path === '/') content = <App />;
+  else if (path === '/login') content = <AuthPage mode="login" />;
+  else if (path === '/signup') content = <AuthPage mode="signup" />;
+  else content = <NotFound />;
+
+  return (
+    <>
+      {content}
+      <SpeedInsights />
+    </>
+  );
 }
